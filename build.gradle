@@ -1,4 +1,5 @@
 plugins {
+    id 'com.finpay.java-conventions'
     id 'com.finpay.spring-conventions'
     id 'com.finpay.testing-conventions'
 }
@@ -16,4 +17,16 @@ jar {
 dependencies {
     implementation libs.spring.boot.starter.web
     implementation libs.common.web
+
+    // Persistence: own schema + Flyway (ADR-0005).
+    implementation libs.spring.boot.starter.data.jpa
+    implementation libs.flyway.core
+    runtimeOnly libs.flyway.database.postgresql
+    runtimeOnly libs.postgresql
+
+    // Outbox relay publishes to Kafka (ADR-0004, EVENT_CATALOG).
+    implementation libs.spring.kafka
+
+    // Shared ArchUnit rules for AGENTS.md rule 4 (composite build).
+    testImplementation libs.common.test
 }
