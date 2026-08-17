@@ -3,3 +3,29 @@ server:
 spring:
   application:
     name: customer-service
+  datasource:
+    url: jdbc:postgresql://localhost:5432/customer_service
+    username: finpay
+    password: finpay
+  jpa:
+    hibernate:
+      ddl-auto: none
+    open-in-view: false
+  flyway:
+    enabled: true
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+finpay:
+  customer:
+    topic: finpay.customer
+    kafka:
+      send-timeout-ms: 5000
+app:
+  outbox:
+    relay:
+      enabled: true
+      interval-ms: 5000
