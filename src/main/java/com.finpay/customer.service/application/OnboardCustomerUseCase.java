@@ -49,7 +49,7 @@ public class OnboardCustomerUseCase {
 
         Optional<IdempotencyRecord> existing = idempotencyRepository.findByIdempotencyKey(command.idempotencyKey());
         if (existing.isPresent()) {
-            return existing.payloadHash().equals(payloadHash)
+            return existing.get().payloadHash().equals(payloadHash)
                     ? toResult(existing.get(), payloadHash)
                     : throwConflict(command.idempotencyKey());
         }

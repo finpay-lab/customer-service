@@ -93,3 +93,6 @@ docker run --rm -v "$PWD":/work -w /work -v gradle-cache:/root/.gradle \
 
 _No runs recorded yet. The worker appends lessons here after each issue._
 
+
+- **2026-08-17 04:20:38** `FP-31` — BUILT_WITH_FIX
+  branch ai/FP-31-fp-2-customer-service-customer-profile-a pushed but build/test FAILED - review

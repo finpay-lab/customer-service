@@ -7,13 +7,15 @@ import com.finpay.customer.service.infrastructure.persistence.OutboxSpringReposi
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.web.client.TestRestTemplate;
+import org.springframework.boot.test.web.server.LocalServerPort;
 import org.springframework.data.domain.PageRequest;
-import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.web.client.RestClient;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -42,15 +44,10 @@ class CustomerOnboardingIntegrationTest {
     @Container
     static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>("postgres:16-alpine");
 
-    @org.springframework.test.context.DynamicPropertySource
-    static void datasourceProperties(org.springframework.test.context.DynamicPropertyRegistry registry) {
-        registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
-        registry.add("spring.datasource.username", POSTGRES::getUsername);
-        registry.add("spring.datasource.password", POSTGRES::getPassword);
-    }
+    @LocalServerPort
+    private int port;
 
-    @Autowired
-    private TestRestTemplate rest;
+    private final RestClient restClient = RestClient.create();
 
     @Autowired
     private OutboxSpringRepository outboxRepository;
@@ -58,7 +55,16 @@ class CustomerOnboardingIntegrationTest {
     @Autowired
     private ObjectMapper objectMapper;
 
-    private static final String BASE = "/api/v1/customers";
+    private String baseUrl() {
+        return "http://localhost:" + port + "/api/v1/customers";
+    }
+
+    @DynamicPropertySource
+    static void datasourceProperties(DynamicPropertyRegistry registry) {
+        registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
+        registry.add("spring.datasource.username", POSTGRES::getUsername);
+        registry.add("spring.datasource.password", POSTGRES::getPassword);
+    }
 
     @Test
     void onboard_creates_customer_and_outbox_row() throws Exception {
@@ -109,13 +115,13 @@ class CustomerOnboardingIntegrationTest {
         onboard("int-key-6", "claude@example.com", "Claude");
         UUID id = customerId(onboard("int-key-6", "claude@example.com", "Claude"));
 
-        ResponseEntity<String> activated = rest.exchange(BASE + "/" + id + "/status", HttpMethod.POST,
-                json(Map.of("action", "ACTIVATE")), String.class);
+        ResponseEntity<String> activated = exchange(HttpMethod.POST, "/" + id + "/status",
+                Map.of("action", "ACTIVATE"));
         assertThat(activated.getStatusCode().value()).isEqualTo(200);
         assertThat(objectMapper.readTree(activated.getBody()).get("status").asText()).isEqualTo("ACTIVE");
 
-        ResponseEntity<String> kyc = rest.exchange(BASE + "/" + id + "/kyc", HttpMethod.POST,
-                json(Map.of("action", "START_KYC")), String.class);
+        ResponseEntity<String> kyc = exchange(HttpMethod.POST, "/" + id + "/kyc",
+                Map.of("action", "START_KYC"));
         assertThat(kyc.getStatusCode().value()).isEqualTo(200);
         assertThat(objectMapper.readTree(kyc.getBody()).get("kycState").asText()).isEqualTo("PENDING");
 
@@ -130,8 +136,8 @@ class CustomerOnboardingIntegrationTest {
         onboard("int-key-7", "alan@example.com", "Alan");
         UUID id = customerId(onboard("int-key-7", "alan@example.com", "Alan"));
 
-        ResponseEntity<String> response = rest.exchange(BASE + "/" + id + "/status", HttpMethod.POST,
-                json(Map.of("action", "SUSPEND")), String.class);
+        ResponseEntity<String> response = exchange(HttpMethod.POST, "/" + id + "/status",
+                Map.of("action", "SUSPEND"));
 
         assertThat(response.getStatusCode().value()).isEqualTo(409);
         JsonNode body = objectMapper.readTree(response.getBody());
@@ -140,27 +146,39 @@ class CustomerOnboardingIntegrationTest {
 
     @Test
     void missing_idempotency_key_is_bad_request() {
-        ResponseEntity<String> response = rest.postForEntity(BASE + "/onboard",
-                json(Map.of("email", "x@example.com", "fullName", "X")), String.class);
+        ResponseEntity<String> response = restClient.post()
+                .uri(baseUrl() + "/onboard")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of("email", "x@example.com", "fullName", "X"))
+                .retrieve()
+                .toEntity(String.class);
         assertThat(response.getStatusCode().value()).isEqualTo(400);
     }
 
     private ResponseEntity<String> onboard(String key, String email, String fullName) {
-        HttpHeaders headers = new HttpHeaders();
-        headers.set("Idempotency-Key", key);
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        HttpEntity<Map<String, Object>> entity = new HttpEntity<>(Map.of("email", email, "fullName", fullName), headers);
-        return rest.postForEntity(BASE + "/onboard", entity, String.class);
+        return restClient.post()
+                .uri(baseUrl() + "/onboard")
+                .header("Idempotency-Key", key)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(Map.of("email", email, "fullName", fullName))
+                .retrieve()
+                .toEntity(String.class);
     }
 
-    private HttpEntity<Map<String, Object>> json(Map<String, Object> body) {
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        return new HttpEntity<>(body, headers);
+    private ResponseEntity<String> exchange(HttpMethod method, String path, Map<String, Object> body) {
+        return restClient.method(method)
+                .uri(baseUrl() + path)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(body)
+                .retrieve()
+                .toEntity(String.class);
     }
 
     private ResponseEntity<String> get(UUID customerId) {
-        return rest.getForEntity(BASE + "/" + customerId, String.class);
+        return restClient.get()
+                .uri(baseUrl() + "/" + customerId)
+                .retrieve()
+                .toEntity(String.class);
     }
 
     private UUID customerId(ResponseEntity<String> response) throws Exception {

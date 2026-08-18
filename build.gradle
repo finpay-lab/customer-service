@@ -27,4 +27,8 @@ dependencies {
 
     testImplementation libs.testcontainers.postgresql
     testImplementation libs.common.test
+    // Spring Boot test support (@SpringBootTest, DynamicPropertyRegistry) for
+    // the integration test. Declared literally: the precompiled testing-conventions
+    // plugin does not regenerate the catalog accessor for this module reliably.
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
 }
