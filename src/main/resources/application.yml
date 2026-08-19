@@ -3,3 +3,49 @@ server:
 spring:
   application:
     name: customer-service
+  mvc:
+    problemdetails:
+      enabled: true
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    listener:
+      # Local lab: topics may not exist before ledger/transfer services run.
+      missing-topics-fatal: false
+
+finpay:
+  explain:
+    index-name: finpay-transaction-events-v1
+    max-evidence: 5
+    kafka:
+      topics: finpay.ledger,finpay.transfer
+      group-id: customer-service-explainer
+    opensearch:
+      base-url: ${OPEN_SEARCH_URL:http://10.8.0.1:9200}
+      connect-timeout: 2s
+      read-timeout: 5s
+      max-retries: 3
+      retry-backoff: 200ms
+      circuit-breaker:
+        failure-threshold: 5
+        reset-timeout: 30s
+        half-open-max-calls: 2
+    llm:
+      # OpenAI-compatible chat-completions endpoint. Base URL + model overridable
+      # per environment; the API key is BYOK from the secret store and never logged.
+      base-url: ${LLM_BASE_URL:https://api.openai.com/v1}
+      model: ${LLM_MODEL:gpt-4o-mini}
+      max-tokens: 512
+      temperature: 0.2
+      connect-timeout: 3s
+      read-timeout: 30s
+      max-retries: 2
+      retry-backoff: 500ms
+      circuit-breaker:
+        failure-threshold: 3
+        reset-timeout: 60s
+        half-open-max-calls: 2
+      api-key: ${FINPAY_LLM_API_KEY:}

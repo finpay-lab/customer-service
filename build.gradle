@@ -1,6 +1,11 @@
 plugins {
     id 'com.finpay.spring-conventions'
     id 'com.finpay.testing-conventions'
+    // The platform spring-conventions plugin deliberately does NOT apply
+    // org.springframework.boot (precompiled-plugin classloading quirk in the
+    // composite build, see finpay-platform build-logic). Services apply it
+    // inline with an explicit version from the catalog.
+    alias(libs.plugins.spring.boot)
 }
 
 description = 'FinPay customer-service.'
@@ -15,5 +20,6 @@ jar {
 
 dependencies {
     implementation libs.spring.boot.starter.web
+    implementation libs.spring.kafka
     implementation libs.common.web
 }
